@@ -1,0 +1,117 @@
+---
+title: "Exploring the BRFSS data"
+output: 
+  html_document: 
+    fig_height: 4
+    highlight: pygments
+    theme: spacelab
+---
+## Setup
+
+### Load packages
+
+```{r load-packages, message = FALSE}
+library(ggplot2)
+library(dplyr)
+```
+
+
+### Load data
+
+
+```{r load-data}
+load("~/Downloads/brfss2013.RData")
+write.csv( brfss2013,"~/Downloads/brfss2013.csv", row.names = FALSE)
+```
+
+* * *
+
+## Part 1: Data
+Behavioral Risk Factor Surveillance System (BRFSS) "comprises health-related telephone surveys that collect state data about U.S. residents regarding  health-related risk behaviors, chronic health conditions, & use of preventive services". Data is collected from all 50 states as well as other districts & territories. 400,000 adult interviews are completed each year. Standardized core questionnaire, optional modules, & state-added questions are used. The survey is conducted using Random Digit Dialing (RDD) (a type of random  stratified sampling), however this is still an observational study, as data collection is retrospective.  The sampling is stratified as random sampling is done on a state, rather than a national level.  For causation to be inferred, researchers would have to randomly assign treatments to subjects, rather than just randomly sampling retrospective data.  Nevertheless, as the sample size is relatively large, and sampling is random and covers every state, the results are generalisable to the population at large, although only correlation (not causation) can be inferred.  One source of sampling bias may be voluntary response i.e. not all people who are reached by telephone actually respond to the questions asked.
+
+* * *
+
+## Part 2: Research questions
+
+**Research question 1:** Is the number of adults residing in your household related to the number of days of not good mental health?  This question aims to find a correlation between overcrowding/busier households and poorer mental health. 
+
+**Research question 2:** Is there a relationship between income and number of diagnoses for health conditions (high blood pressure, high cholesterol, heart attack, angina/coronary heart disease, stroke, asthma, skin cancer, other cancers, copd/emphysema, arthritis, depression, kidney disease, diabetes)?  This is of particular relevance in light of the pandemic, as the poorest in society are most vulnerable to the disease from a health perspective.
+
+**Research question 3:**
+Is there a relationship between whether you have any healthcare coverage, and mean number of healthcare condition diagnoses (same list as above)?  This is of interest, as those with healthcare coverage may be more likely to be diagnosed, but, equally, are likely to be healthier than those without coverage.
+
+* * *
+
+## Part 3: Exploratory data analysis
+
+NOTE: Insert code chunks as needed by clicking on the "Insert a new code chunk" 
+button (green button with orange arrow) above. Make sure that your code is visible
+in the project you submit. Delete this note when before you submit your work.
+
+**Research quesion 1:**
+
+```{r}
+reasonable_dataset <- brfss2013 %>% filter(menthlth <= 30) %>% filter(numadult != 'NA')
+reasonable_dataset <- transform(reasonable_dataset, numadult=as.numeric(numadult))
+ggplot(data = reasonable_dataset, aes(x = numadult, y = menthlth)) + geom_point(alpha = 0.5, colour="purple") + ggtitle("Number of Adults in Household vs Number of Poor Mental Health Days") + geom_abline() + stat_smooth(method="glm", method.args=list(family="binomial"), se=FALSE)
+
+logarithmic_dataset <- transform(reasonable_dataset, log_numadult=log(numadult))
+logarithmic_dataset <- transform(logarithmic_dataset, log_menthlth=log(menthlth))
+ggplot(data = logarithmic_dataset, aes(x = log_numadult, y = log_menthlth)) + geom_point(alpha = 0.5, colour="purple") + ggtitle("Natural Log Adults in Household vs Natural Log Poor Mental Health Days") + geom_abline()
+```
+
+Although data is quite broadly scattered, there appears to be a general positive correlation between number of adults in a household, and number of poor mental health days, as indicated by the black linear regression line.  This relationship becomes even clearer when the natural logarithm of both variables is taken (a standard way of transforming data).
+
+
+**Research quesion 2:**
+All conditions relevant to COVID-19
+```{r}
+relevant_data <- brfss2013 %>% select(cvdinfr4, cvdcrhd4, asthnow,chccopd1,chckidny,diabete3, income2)
+
+relevant_data <- relevant_data %>% filter(income2 != "NA")
+
+relevant_data$count <- rowSums(relevant_data == "Yes")
+
+relevant_data <- relevant_data %>% filter(count != 'NA')
+
+mean_count <- relevant_data %>% group_by(income2) %>% summarise(mean_condition_count = mean(count))
+
+ggplot(mean_count, aes(x=income2, y = mean_condition_count)) + geom_bar(stat="identity", fill="steelblue")+
+  theme_minimal() + coord_flip() + ggtitle(label = '', subtitle = "Mean no. of health conditions which increase COVID-19 vulnerability by income band") + xlab("Mean number of conditions") + ylab("Income band")
+mean_count
+
+```
+
+
+In answer to this question, I calculated the total number of diagnoses for each individual, and calculated the mean number of diagnoses grouped by income.  The bar chart plotted illustrates that there is a strong correlation between income and mean number of diagnoses; the lower your income the more, on average, your healthcare diagnoses.
+
+
+**Research quesion 3:**
+
+```{r}
+useful_data <- brfss2013 %>% select(cvdinfr4, cvdcrhd4, asthnow,chccopd1,chckidny,diabete3, hlthpln1)
+
+useful_data <- useful_data %>% filter(hlthpln1 != "NA")
+
+useful_data$count <- rowSums(useful_data == "Yes")
+
+useful_data$adjusted_count <- useful_data$count - 1
+
+useful_data <- useful_data %>% filter(count != 'NA')
+
+mean_diagnoses <- useful_data %>% group_by(hlthpln1) %>% summarise(mean_diagnosis_count = mean(count))
+
+ggplot(mean_diagnoses, aes(x=hlthpln1, y = mean_diagnosis_count)) + geom_bar(stat="identity", fill="steelblue")+
+  theme_minimal() + coord_flip() + ggtitle(label = '', subtitle = "Mean no. of health condition diagnoses which increase COVID vulnerability by health care coverage") + xlab("Mean number of conditions") + ylab("Health Care Coverage")
+mean_diagnoses
+
+
+```
+
+
+As the bar chart indicates, people with health coverage are likely to have been diagnosed with approximately 2 times as many conditions as those without; this is likely due to their increased frequency of checkups, which leads to their conditions being diagnosed with a greater likelihood.
+
+
+
+
+
